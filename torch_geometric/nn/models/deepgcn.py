@@ -2,6 +2,37 @@ import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
+class RevDeepGCNLayer(torch.nn.Module):
+
+    def __init__(self, conv=None, norm=None, act=None, block='res',
+                 dropout=0., ckpt_grad=False):
+        super(RevDeepGCNLayer, self).__init__()
+
+        gm = DeepGCNLayer(conv=conv, norm=norm, act=act, block=block,
+                          dropout=dropout, ckpt_grad=ckpt_grad)
+        fm = DeepGCNLayer(conv=conv, norm=norm, act=act, block=block,
+                          dropout=dropout, ckpt_grad=ckpt_grad)
+        coupling = create_coupling(Fm=fm, Gm=gm, coupling='additive')
+        self.revblock = InvertibleModuleWrapper(fn=coupling, keep_input=False)
+
+        self.conv = conv
+        self.norm = norm
+        self.act = act
+        self.block = block.lower()
+        assert self.block in ['res+', 'res', 'dense', 'plain']
+        self.dropout = dropout
+        self.ckpt_grad = ckpt_grad
+
+    def reset_parameters(self):
+        self.conv.reset_parameters()
+        self.norm.reset_parameters()
+    
+    def forward(self, *args, **kwargs):
+        out = self.revblock(*args, **kwargs)
+        return out
+
+    def __repr__(self):
+        return '{}(block={})'.format(self.__class__.__name__, self.block)
 
 class DeepGCNLayer(torch.nn.Module):
     r"""The skip connection operations from the
