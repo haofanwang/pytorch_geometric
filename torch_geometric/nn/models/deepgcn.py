@@ -2,11 +2,19 @@ import torch
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 
+from torch.nn import LayerNorm, ReLU
+from torch_geometric.nn import GENConv
+
 class RevDeepGCNLayer(torch.nn.Module):
 
     def __init__(self, conv=None, norm=None, act=None, block='res',
                  dropout=0., ckpt_grad=False):
         super(RevDeepGCNLayer, self).__init__()
+        
+        conv = GENConv(hidden_channels, hidden_channels, aggr='softmax',
+                        t=1.0, learn_t=True, num_layers=2, norm='layer')
+        norm = LayerNorm(hidden_channels, elementwise_affine=True)
+        act = ReLU(inplace=True)
 
         gm = DeepGCNLayer(conv=conv, norm=norm, act=act, block=block,
                           dropout=dropout, ckpt_grad=ckpt_grad)

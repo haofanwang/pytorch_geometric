@@ -37,14 +37,12 @@ class DeeperGCN(torch.nn.Module):
         self.edge_encoder = Linear(data.edge_attr.size(-1), hidden_channels)
 
         self.layers = torch.nn.ModuleList()
-        for i in range(1, num_layers + 1):
-            conv = GENConv(hidden_channels, hidden_channels, aggr='softmax',
-                           t=1.0, learn_t=True, num_layers=2, norm='layer')
-            norm = LayerNorm(hidden_channels, elementwise_affine=True)
-            act = ReLU(inplace=True)
 
-            layer = RevDeepGCNLayer(conv, norm, act, block='res', dropout=0.1,
-                                 ckpt_grad=i % 3)
+        layer = RevDeepGCNLayer(hidden_channels, block='res', dropout=0.1)
+        self.layers.append(layer)
+
+        for i in range(num_layers):
+            layer = RevDeepGCNLayer(hidden_channels//2, block='res', dropout=0.1, ckpt_grad=i % 3)
             self.layers.append(layer)
 
         self.lin = Linear(hidden_channels, data.y.size(-1))
@@ -56,7 +54,7 @@ class DeeperGCN(torch.nn.Module):
         x = self.layers[0].conv(x, edge_index, edge_attr)
 
         for layer in self.layers[1:]:
-            x = layer((x, edge_index, edge_attr))
+            x = layer(x, edge_index, edge_attr)
 
         x = self.layers[0].act(self.layers[0].norm(x))
         x = F.dropout(x, p=0.1, training=self.training)
